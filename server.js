@@ -3,25 +3,33 @@
  *  SABER RURAL v2.0 — server.js
  *  I.E. Pueblo Nuevo · INEPUN · Tierralta, Córdoba
  * ────────────────────────────────────────────────────────────
- *  Servidor Node.js para intranet local (LAN/WiFi sin internet)
- *  Compatible con celulares y tablets de la red del docente.
+ *  Servidor Node.js — compatible LAN local Y despliegue en nube
+ *  (Render, Railway, Fly.io, etc.)
  *
  *  CARACTERÍSTICAS:
- *  ✅ IP dinámica — escucha en 0.0.0.0 (cualquier interfaz)
- *  ✅ CORS permisivo para LAN local
- *  ✅ Chat en tiempo real (endpoint REST + polling desde cliente)
- *  ✅ Registro de resultados de simulacros (POST /api/resultado)
- *  ✅ Dashboard del docente (GET /api/dashboard)
- *  ✅ Subida de archivos (POST /api/recursos/upload)
+ *  ✅ Puerto dinámico via process.env.PORT (requerido por Render)
+ *  ✅ JWT_SECRET obligatorio en producción (variable de entorno)
+ *  ✅ HOST adaptativo: 0.0.0.0 local, ajustado en nube
+ *  ✅ CORS permisivo para LAN y producción
+ *  ✅ Directorio de datos via DATA_DIR env (opcional)
+ *  ✅ Chat en tiempo real (REST + polling)
+ *  ✅ Registro de resultados de simulacros
+ *  ✅ Dashboard del docente
+ *  ✅ Subida de archivos (multer)
  *  ✅ Autenticación JWT ligera
- *  ✅ Sin dependencias externas pesadas (solo express + multer + jsonwebtoken)
  *
- *  INSTALACIÓN:
- *    npm install express multer jsonwebtoken
+ *  VARIABLES DE ENTORNO (configurar en Render → Environment):
+ *    PORT        → Render lo asigna automáticamente (NO tocar)
+ *    JWT_SECRET  → ¡OBLIGATORIO en producción! Cadena larga y secreta
+ *    NODE_ENV    → "production" en Render
+ *
+ *  USO LOCAL:
+ *    npm install
  *    node server.js
  *
- *  El servidor sirve el HTML desde /public/index.html
- *  Acceso desde celulares: http://<IP-del-PC>:3000
+ *  DESPLIEGUE EN RENDER:
+ *    Build Command:  npm install
+ *    Start Command:  node server.js
  * ════════════════════════════════════════════════════════════
  */
 
@@ -34,13 +42,38 @@ const multer   = require('multer');
 const jwt      = require('jsonwebtoken');
 const crypto   = require('crypto');
 
-// ── Configuración global ────────────────────────────────────
-const PORT       = process.env.PORT || 3000;
-const HOST       = '0.0.0.0';          // Escuchar en TODAS las interfaces de red
-const JWT_SECRET = process.env.JWT_SECRET || 'inepun-saber-rural-2025-secret-lan';
-const JWT_EXPIRY = '12h';              // Token válido 12 horas (una jornada escolar)
-const DATA_DIR   = path.join(__dirname, 'data');
-const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
+// ── Detección de entorno ─────────────────────────────────────
+const IS_PROD = process.env.NODE_ENV === 'production';
+
+// ── Configuración global ─────────────────────────────────────
+//    PORT: Render (y cualquier PaaS) inyecta process.env.PORT.
+//    El fallback 3000 aplica solo en desarrollo local.
+const PORT = process.env.PORT || 3000;
+
+//    HOST: En producción algunos entornos requieren escuchar solo
+//    en 0.0.0.0 — esto ya funciona tanto local como en nube.
+const HOST = '0.0.0.0';
+
+//    JWT_SECRET: En producción DEBE venir de variable de entorno.
+//    Si no está definida en producción, el servidor no arranca.
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  if (IS_PROD) {
+    console.error('\n[ERROR FATAL] JWT_SECRET no está definido.');
+    console.error('→ En Render: ve a Environment y agrega la variable JWT_SECRET.');
+    process.exit(1);
+  } else {
+    // Solo en desarrollo local se permite el valor por defecto
+    console.warn('[ADVERTENCIA] JWT_SECRET no definido. Usando valor de desarrollo (NO usar en producción).');
+  }
+}
+const JWT_SECRET_FINAL = JWT_SECRET || 'inepun-saber-rural-dev-secret-local';
+const JWT_EXPIRY = '12h';
+
+//    DATA_DIR: En Render el sistema de archivos es efímero.
+//    Los datos JSON se perderán al reiniciar — ver nota al pie.
+const DATA_DIR   = process.env.DATA_DIR || path.join(__dirname, 'data');
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, 'public', 'uploads');
 
 // Crear directorios necesarios si no existen
 [DATA_DIR, UPLOAD_DIR, path.join(__dirname, 'public')].forEach(d => {
@@ -87,7 +120,6 @@ const DEFAULT_USERS = [
   { username: 'pedro',      password: hashPass('saber2025'),  name: 'Pedro López',         emoji: '👦',  role: 'estudiante' },
 ];
 
-// Inicializar usuarios si no existen
 if (!fs.existsSync(FILES.users)) {
   writeJSON(FILES.users, DEFAULT_USERS);
   console.log('[INIT] Usuarios predeterminados creados.');
@@ -96,14 +128,12 @@ if (!fs.existsSync(FILES.users)) {
 // ── Aplicación Express ───────────────────────────────────────
 const app = express();
 
-// ── CORS total para LAN local ────────────────────────────────
-// Permite conexiones desde cualquier dispositivo de la red WiFi
+// ── CORS — permisivo para LAN y producción ───────────────────
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  // Cache mínimo para respuestas de API
   if (req.path.startsWith('/api/')) {
     res.setHeader('Cache-Control', 'no-store');
   }
@@ -115,11 +145,11 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Archivos estáticos públicos (HTML + uploads)
+// Archivos estáticos
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 
-// ── Multer — subida de archivos ──────────────────────────────
+// ── Multer ───────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename:    (req, file, cb) => {
@@ -130,16 +160,16 @@ const storage = multer.diskStorage({
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB máximo
+  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
 });
 
-// ── Middleware de autenticación JWT ──────────────────────────
+// ── Middleware JWT ───────────────────────────────────────────
 function requireAuth(req, res, next) {
-  const auth = req.headers['authorization'] || '';
+  const auth  = req.headers['authorization'] || '';
   const token = auth.replace(/^Bearer\s+/i, '');
   if (!token) return res.status(401).json({ error: 'Token requerido' });
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, JWT_SECRET_FINAL);
     next();
   } catch {
     res.status(401).json({ error: 'Token inválido o expirado. Inicia sesión nuevamente.' });
@@ -159,12 +189,14 @@ function requireTutor(req, res, next) {
 //  ENDPOINTS API
 // ════════════════════════════════════════════════════════════
 
-// ── Ping / health check ──────────────────────────────────────
+// ── Health check ─────────────────────────────────────────────
+// Render usa este endpoint para verificar que el servidor está vivo
 app.get('/api/ping', (req, res) => {
   res.json({
     ok: true,
     server: 'SABER RURAL v2.0',
     ie: 'I.E. Pueblo Nuevo · INEPUN',
+    env: IS_PROD ? 'producción' : 'desarrollo',
     ts: new Date().toISOString(),
     uptime: Math.floor(process.uptime()) + 's'
   });
@@ -180,13 +212,10 @@ app.post('/api/login', (req, res) => {
   const users = readJSON(FILES.users, DEFAULT_USERS);
   const user  = users.find(u => u.username === username.toLowerCase().trim());
 
-  // Aceptar tanto hash SHA-256 del servidor como el hash FNV-1a del cliente HTML
-  // (el HTML usa _hashPass que es FNV-1a, el servidor usa SHA-256)
   const serverHash = hashPass(password);
-  const matches = user && (user.password === serverHash || user.password === password);
+  const matches    = user && (user.password === serverHash || user.password === password);
 
   if (!matches) {
-    // Log intento fallido
     const act = readJSON(FILES.actividad, []);
     act.push({ tipo: 'login_fallido', username, ip: req.ip, ts: new Date().toISOString() });
     if (act.length > 500) act.splice(0, act.length - 500);
@@ -196,11 +225,10 @@ app.post('/api/login', (req, res) => {
 
   const token = jwt.sign(
     { username: user.username, role: user.role, name: user.name },
-    JWT_SECRET,
+    JWT_SECRET_FINAL,
     { expiresIn: JWT_EXPIRY }
   );
 
-  // Log de acceso
   const act = readJSON(FILES.actividad, []);
   act.push({ tipo: 'login', username: user.username, ip: req.ip, ts: new Date().toISOString() });
   if (act.length > 1000) act.splice(0, act.length - 1000);
@@ -237,19 +265,17 @@ app.post('/api/cambiar-password', requireAuth, (req, res) => {
   res.json({ ok: true, message: 'Contraseña actualizada correctamente' });
 });
 
-// ── CHAT — GET (con soporte ?desde= para polling incremental) ─
+// ── CHAT — GET ───────────────────────────────────────────────
 app.get('/api/chat', requireAuth, (req, res) => {
   let msgs = readJSON(FILES.chat, []);
-  // Si viene parámetro "desde", filtrar mensajes más nuevos
   if (req.query.desde) {
     msgs = msgs.filter(m => m.ts && m.ts > req.query.desde);
   }
-  // Limitar respuesta a los últimos 200 mensajes
   if (msgs.length > 200) msgs = msgs.slice(-200);
   res.json({ ok: true, msgs, total: msgs.length });
 });
 
-// ── CHAT — POST (enviar mensaje, estudiantes Y docente) ──────
+// ── CHAT — POST ──────────────────────────────────────────────
 app.post('/api/chat', requireAuth, (req, res) => {
   const { text } = req.body || {};
   if (!text || !text.trim()) {
@@ -262,40 +288,37 @@ app.post('/api/chat', requireAuth, (req, res) => {
     name:  req.user.name,
     emoji: req.user.role === 'tutor' ? '👨‍🏫' : '👤',
     role:  req.user.role,
-    text:  text.trim().slice(0, 1000), // Límite de 1000 chars
+    text:  text.trim().slice(0, 1000),
     time:  new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
     type:  'msg',
     ts:    new Date().toISOString()
   };
   msgs.push(msg);
-
-  // Mantener máximo 500 mensajes en disco
   if (msgs.length > 500) msgs.splice(0, msgs.length - 500);
   writeJSON(FILES.chat, msgs);
-
   res.json({ ok: true, msg });
 });
 
-// ── CHAT — DELETE (limpiar, solo tutor) ─────────────────────
+// ── CHAT — DELETE ────────────────────────────────────────────
 app.delete('/api/chat', requireTutor, (req, res) => {
   const limpio = [{ type: 'sys', text: '🗑️ Chat limpiado por el docente · ' + new Date().toLocaleTimeString('es-CO'), ts: new Date().toISOString() }];
   writeJSON(FILES.chat, limpio);
   res.json({ ok: true });
 });
 
-// ── RESULTADO DE SIMULACRO — POST ───────────────────────────
+// ── RESULTADO — POST ─────────────────────────────────────────
 app.post('/api/resultado', requireAuth, (req, res) => {
   const body = req.body || {};
   const resultado = {
-    username: req.user.username,
-    nombre:   req.user.name,
-    modulo:   body.modulo   || 'desconocido',
-    score:    Number(body.score)  || 0,
-    total:    Number(body.total)  || 0,
-    pct:      Number(body.pct)    || 0,
-    duracion: Number(body.duracion) || 0,
+    username:   req.user.username,
+    nombre:     req.user.name,
+    modulo:     body.modulo   || 'desconocido',
+    score:      Number(body.score)    || 0,
+    total:      Number(body.total)    || 0,
+    pct:        Number(body.pct)      || 0,
+    duracion:   Number(body.duracion) || 0,
     respuestas: Array.isArray(body.respuestas) ? body.respuestas : [],
-    fecha:    new Date().toLocaleString('es-CO', {
+    fecha:      new Date().toLocaleString('es-CO', {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit'
     }),
@@ -311,7 +334,7 @@ app.post('/api/resultado', requireAuth, (req, res) => {
   res.json({ ok: true, resultado });
 });
 
-// ── RESULTADO — GET (solo tutor, ver todos los resultados) ──
+// ── RESULTADOS — GET (tutor) ─────────────────────────────────
 app.get('/api/resultados', requireTutor, (req, res) => {
   const resultados = readJSON(FILES.resultados, []);
   res.json({ ok: true, resultados, total: resultados.length });
@@ -323,7 +346,6 @@ app.get('/api/dashboard', requireTutor, (req, res) => {
   const notas       = readJSON(FILES.notas, { students: [] });
   const estudiantes = [...new Set(resultados.map(r => r.username))];
 
-  // Tabla BIO: resultados agrupados por estudiante
   const porEst = {};
   for (const r of resultados) {
     if (!porEst[r.username]) porEst[r.username] = { nombre: r.nombre, tematicas: [], pcts: [] };
@@ -335,11 +357,10 @@ app.get('/api/dashboard', requireTutor, (req, res) => {
     username,
     emoji:    '👤',
     nombre:   data.nombre,
-    tematicas: data.tematicas.slice(-5), // últimas 5 por estudiante
+    tematicas: data.tematicas.slice(-5),
     promedio: data.pcts.length ? Math.round(data.pcts.reduce((a, b) => a + b, 0) / data.pcts.length) : 0
   }));
 
-  // Tabla CTS: últimos 20 simulacros
   const tabla_cts = resultados.slice(-20).reverse().map(r => ({
     username: r.username,
     nombre:   r.nombre,
@@ -373,7 +394,7 @@ app.get('/api/notas', requireTutor, (req, res) => {
   res.json({ ok: true, students: data.students || [] });
 });
 
-// ── NOTAS — SYNC (POST, solo tutor) ─────────────────────────
+// ── NOTAS — SYNC ─────────────────────────────────────────────
 app.post('/api/notas/sync', requireTutor, (req, res) => {
   const { students } = req.body || {};
   if (!Array.isArray(students)) {
@@ -388,7 +409,7 @@ app.post('/api/actividad', requireAuth, (req, res) => {
   const { action, detail } = req.body || {};
   const act = readJSON(FILES.actividad, []);
   act.push({
-    tipo: action || 'actividad',
+    tipo:     action || 'actividad',
     username: req.user.username,
     nombre:   req.user.name,
     detail:   (detail || '').slice(0, 200),
@@ -400,7 +421,7 @@ app.post('/api/actividad', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── ACTIVIDAD — GET (solo tutor) ─────────────────────────────
+// ── ACTIVIDAD — GET ──────────────────────────────────────────
 app.get('/api/actividad', requireTutor, (req, res) => {
   const act = readJSON(FILES.actividad, []);
   res.json({ ok: true, actividad: act.slice(-100).reverse() });
@@ -412,7 +433,7 @@ app.get('/api/recursos', requireAuth, (req, res) => {
   res.json({ ok: true, recursos });
 });
 
-// ── RECURSOS — UPLOAD (POST, solo tutor) ────────────────────
+// ── RECURSOS — UPLOAD ────────────────────────────────────────
 app.post('/api/recursos/upload', requireTutor, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No se recibió ningún archivo' });
 
@@ -438,12 +459,11 @@ app.post('/api/recursos/upload', requireTutor, upload.single('file'), (req, res)
 
   recursos.push(resource);
   writeJSON(FILES.recursos, recursos);
-
   console.log(`[UPLOAD] "${resource.titulo}" · ${(resource.size / 1024).toFixed(0)} KB · ${req.user.name}`);
   res.json({ ok: true, resource, url: resource.url });
 });
 
-// ── RECURSOS — DELETE (solo tutor) ──────────────────────────
+// ── RECURSOS — DELETE ────────────────────────────────────────
 app.delete('/api/recursos/:id', requireTutor, (req, res) => {
   const id       = Number(req.params.id);
   let recursos   = readJSON(FILES.recursos, []);
@@ -451,7 +471,6 @@ app.delete('/api/recursos/:id', requireTutor, (req, res) => {
 
   if (!resource) return res.status(404).json({ error: 'Recurso no encontrado' });
 
-  // Eliminar archivo físico
   const filePath = path.join(UPLOAD_DIR, resource.filename);
   if (fs.existsSync(filePath)) {
     try { fs.unlinkSync(filePath); }
@@ -463,7 +482,7 @@ app.delete('/api/recursos/:id', requireTutor, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── PERFILES — GET (lista pública de estudiantes, solo tutor) ─
+// ── PERFILES ─────────────────────────────────────────────────
 app.get('/api/perfiles', requireTutor, (req, res) => {
   const resultados = readJSON(FILES.resultados, []);
   const users      = readJSON(FILES.users, DEFAULT_USERS);
@@ -490,7 +509,7 @@ app.get('/api/perfiles', requireTutor, (req, res) => {
   res.json({ ok: true, perfiles });
 });
 
-// ── PERFIL INDIVIDUAL — GET ──────────────────────────────────
+// ── PERFIL INDIVIDUAL ────────────────────────────────────────
 app.get('/api/perfil/:username', requireAuth, (req, res) => {
   const users = readJSON(FILES.users, DEFAULT_USERS);
   const user  = users.find(u => u.username === req.params.username);
@@ -515,14 +534,14 @@ app.get('/api/perfil/:username', requireAuth, (req, res) => {
   });
 });
 
-// ── PROGRESO — GET (un estudiante ve su propio progreso) ─────
+// ── PROGRESO ─────────────────────────────────────────────────
 app.get('/api/progreso', requireAuth, (req, res) => {
   const resultados = readJSON(FILES.resultados, []);
   const misRes     = resultados.filter(r => r.username === req.user.username);
   res.json({ ok: true, resultados: misRes });
 });
 
-// ── QUIZ RÁPIDO — POST (endpoint alternativo a /api/resultado) ─
+// ── QUIZ RÁPIDO ──────────────────────────────────────────────
 app.post('/api/quiz', requireAuth, (req, res) => {
   const { mod, score, total, pct } = req.body || {};
   const resultado = {
@@ -543,8 +562,38 @@ app.post('/api/quiz', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Ruta catch-all: servir index.html ───────────────────────
-// (para cuando el HTML está en /public/index.html)
+
+// ── RECURSOS — ENLACE URL (POST, solo tutor) ────────────────────────
+app.post('/api/recursos/enlace', requireTutor, (req, res) => {
+  const { titulo, modulo, enlace } = req.body || {};
+  if (!enlace) return res.status(400).json({ error: 'URL requerida' });
+
+  const recursos = readJSON(FILES.recursos, []);
+  const id       = Date.now();
+  const resource = {
+    id,
+    titulo:       (titulo || enlace).trim(),
+    modulo:       modulo || 'general',
+    tipo:         'enlace',
+    url:          enlace,
+    filename:     null,
+    uploadedBy:   req.user.username,
+    uploaderName: req.user.name,
+    fecha:        new Date().toLocaleString('es-CO', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    }),
+    ts: new Date().toISOString()
+  };
+
+  recursos.push(resource);
+  writeJSON(FILES.recursos, recursos);
+  console.log(`[ENLACE] "${resource.titulo}" · ${req.user.name}`);
+  res.json({ ok: true, resource });
+});
+
+
+// ── Catch-all: servir index.html ─────────────────────────────
 app.get('*', (req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
   if (fs.existsSync(indexPath)) {
@@ -560,7 +609,7 @@ mkdir public
 cp SABER_RURAL_*.html public/index.html
 node server.js</pre>
         <hr>
-        <p>✅ El servidor API está funcionando correctamente en <strong>http://${req.hostname}:${PORT}</strong></p>
+        <p>✅ API activa · Verifica en <strong>/api/ping</strong></p>
       </body></html>
     `);
   }
@@ -577,7 +626,6 @@ app.use((err, req, res, next) => {
 
 // ── Iniciar servidor ─────────────────────────────────────────
 app.listen(PORT, HOST, () => {
-  // Obtener IPs locales para mostrar en consola
   const os   = require('os');
   const nets = os.networkInterfaces();
   const ips  = [];
@@ -587,28 +635,41 @@ app.listen(PORT, HOST, () => {
     }
   }
 
-  console.log('\n╔══════════════════════════════════════════════════╗');
-  console.log('║   🌱 SABER RURAL v2.0 — I.E. Pueblo Nuevo       ║');
-  console.log('║      Servidor LAN para intranet escolar          ║');
-  console.log('╠══════════════════════════════════════════════════╣');
-  console.log(`║  ✅ Servidor activo en puerto ${PORT}               ║`);
-  console.log('║                                                  ║');
-  console.log('║  📡 Acceso desde este PC:                        ║');
-  console.log(`║     http://localhost:${PORT}                        ║`);
-  if (ips.length) {
+  if (IS_PROD) {
+    console.log('\n╔══════════════════════════════════════════════════╗');
+    console.log('║   🌱 SABER RURAL v2.0 — Modo PRODUCCIÓN          ║');
+    console.log('╠══════════════════════════════════════════════════╣');
+    console.log(`║  ✅ Servidor activo en puerto ${PORT}               ║`);
+    console.log('║  🌐 Desplegado en la nube (Render/Railway)        ║');
+    console.log('║  🔒 JWT_SECRET desde variable de entorno          ║');
+    console.log('╚══════════════════════════════════════════════════╝\n');
+    console.log('[AVISO] El sistema de archivos en Render es efímero.');
+    console.log('[AVISO] Los datos JSON y uploads se pierden al reiniciar.');
+    console.log('[AVISO] Para persistencia use Render Disks o una base de datos.\n');
+  } else {
+    console.log('\n╔══════════════════════════════════════════════════╗');
+    console.log('║   🌱 SABER RURAL v2.0 — I.E. Pueblo Nuevo       ║');
+    console.log('║      Modo DESARROLLO LOCAL                       ║');
+    console.log('╠══════════════════════════════════════════════════╣');
+    console.log(`║  ✅ Servidor activo en puerto ${PORT}               ║`);
     console.log('║                                                  ║');
-    console.log('║  📱 Acceso desde celulares/tablets (WiFi):       ║');
-    ips.forEach(ip => {
-      const url = `http://${ip}:${PORT}`;
-      const pad = ' '.repeat(Math.max(0, 46 - url.length));
-      console.log(`║     ${url}${pad}║`);
-    });
+    console.log('║  📡 Acceso desde este PC:                        ║');
+    console.log(`║     http://localhost:${PORT}                        ║`);
+    if (ips.length) {
+      console.log('║                                                  ║');
+      console.log('║  📱 Acceso desde celulares/tablets (WiFi):       ║');
+      ips.forEach(ip => {
+        const url = `http://${ip}:${PORT}`;
+        const pad = ' '.repeat(Math.max(0, 46 - url.length));
+        console.log(`║     ${url}${pad}║`);
+      });
+    }
+    console.log('║                                                  ║');
+    console.log('║  👨‍🏫 Usuarios de ejemplo:                         ║');
+    console.log('║     profe / profe123     (Docente)               ║');
+    console.log('║     carlos / saber2025   (Estudiante)            ║');
+    console.log('╚══════════════════════════════════════════════════╝\n');
   }
-  console.log('║                                                  ║');
-  console.log('║  👨‍🏫 Usuarios de ejemplo:                         ║');
-  console.log('║     profe / profe123     (Docente)               ║');
-  console.log('║     carlos / saber2025   (Estudiante)            ║');
-  console.log('╚══════════════════════════════════════════════════╝\n');
 });
 
 module.exports = app;
