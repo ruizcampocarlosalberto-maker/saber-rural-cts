@@ -1,0 +1,98 @@
+════════════════════════════════════════════════════════════
+  SABER RURAL v2.0 — Guía de Instalación LAN
+  I.E. Pueblo Nuevo · INEPUN · Tierralta, Córdoba
+════════════════════════════════════════════════════════════
+
+ARCHIVOS EN ESTA CARPETA:
+  ✅ server.js              → Servidor Node.js
+  ✅ package.json           → Dependencias
+  ✅ SABER_RURAL_v2_LAN.html → Aplicación web
+
+──────────────────────────────────────────────────────────
+PASO 1 — Estructura de carpetas en el PC del docente
+──────────────────────────────────────────────────────────
+Crear esta estructura:
+
+  📁 saber-rural/
+     ├── server.js
+     ├── package.json
+     └── 📁 public/
+            └── index.html   ← Copiar aquí SABER_RURAL_v2_LAN.html
+
+Comandos:
+  mkdir saber-rural
+  mkdir saber-rural\public        (Windows)
+  copy server.js saber-rural\
+  copy package.json saber-rural\
+  copy SABER_RURAL_v2_LAN.html saber-rural\public\index.html
+
+──────────────────────────────────────────────────────────
+PASO 2 — Instalar Node.js (solo la primera vez)
+──────────────────────────────────────────────────────────
+1. Descargar Node.js desde: https://nodejs.org (versión LTS)
+2. Instalar con todas las opciones por defecto
+3. Reiniciar el PC
+
+──────────────────────────────────────────────────────────
+PASO 3 — Instalar dependencias (solo la primera vez)
+──────────────────────────────────────────────────────────
+Abrir CMD o PowerShell en la carpeta saber-rural/:
+
+  cd saber-rural
+  npm install
+
+(Requiere internet solo esta primera vez)
+
+──────────────────────────────────────────────────────────
+PASO 4 — Iniciar el servidor
+──────────────────────────────────────────────────────────
+  node server.js
+
+El servidor mostrará las IPs disponibles. Ejemplo:
+  📡 http://localhost:3000          (este PC)
+  📱 http://192.168.1.106:3000      (celulares en WiFi)
+
+──────────────────────────────────────────────────────────
+PASO 5 — Conectar estudiantes
+──────────────────────────────────────────────────────────
+1. Conectar el celular/tablet a la misma red WiFi del PC
+2. Abrir el navegador en el celular
+3. Escribir la IP que aparece en la consola del servidor
+   Ejemplo: http://192.168.1.106:3000
+
+──────────────────────────────────────────────────────────
+USUARIOS PREDETERMINADOS
+──────────────────────────────────────────────────────────
+  👨‍🏫 Docente:     profe / profe123
+  👨‍🏫 Tutor:       tutor / inepun2025
+  👨‍🏫 Admin:       docente / admin123
+  👨‍🎓 Estudiante:  carlos / saber2025
+  👨‍🎓 Estudiante:  maria / saber2025
+  👨‍🎓 Estudiante:  juan / saber2025
+  👨‍🎓 Estudiante:  ana / saber2025
+  👨‍🎓 Estudiante:  pedro / saber2025
+
+──────────────────────────────────────────────────────────
+ENDPOINTS API DISPONIBLES
+──────────────────────────────────────────────────────────
+  GET  /api/ping            → Estado del servidor
+  POST /api/login           → Autenticación
+  GET  /api/chat            → Obtener mensajes (polling 3s)
+  POST /api/chat            → Enviar mensaje (ambos roles)
+  DEL  /api/chat            → Limpiar chat (solo docente)
+  POST /api/resultado       → Guardar resultado simulacro
+  GET  /api/dashboard       → Panel docente en tiempo real
+  POST /api/recursos/upload → Subir archivos
+  GET  /api/recursos        → Listar recursos
+
+──────────────────────────────────────────────────────────
+CAMBIOS REALIZADOS EN v2 LAN
+──────────────────────────────────────────────────────────
+  ✅ IP dinámica: window.location.hostname automático
+  ✅ Chat para AMBOS roles (tutor y estudiante)
+  ✅ Polling automático cada 3 segundos
+  ✅ Panel docente: Chat separado del área de archivos
+  ✅ saveResultToRegistry → envía token al servidor
+  ✅ CORS 0.0.0.0 — acceso desde cualquier dispositivo
+  ✅ server.js escucha en todas las interfaces de red
+════════════════════════════════════════════════════════════
