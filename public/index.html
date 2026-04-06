@@ -5749,7 +5749,7 @@ const API_BASE = (location.protocol === 'file:')
   ? `http://${window.location.hostname || 'localhost'}:${_LAN_PORT}`
   : (window.location.port
       ? window.location.origin                         // ya tiene puerto (ej: 192.168.x.x:3000)
-      : `${window.location.protocol}//${window.location.hostname}:${_LAN_PORT}`);  // sin puerto → añadir
+      : window.location.origin); // nube: usar origin sin puerto
 
 // Helper: construye la URL completa para cualquier endpoint
 // Ejemplo: apiUrl('/api/login') → "http://192.168.1.106:3000/api/login"
