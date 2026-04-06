@@ -7797,9 +7797,9 @@ async function dashSubirEnlace() {
   if (!url)    { if (errEl) { errEl.textContent = '⚠️ La URL es obligatoria.';    errEl.style.display = 'block'; } return; }
   if (!_apiToken || !_serverOnline) { if (errEl) { errEl.textContent = '⚠️ Sin servidor disponible.'; errEl.style.display = 'block'; } return; }
   try {
-    await _apiFetch('/api/recursos/upload', {
+    await _apiFetch('/api/recursos/enlace', {
       method: 'POST',
-      body: JSON.stringify({ titulo, modulo, url, tipo: 'enlace' })
+      body: JSON.stringify({ titulo, modulo, enlace: url })
     });
     document.getElementById('dash-ul-titulo').value = '';
     document.getElementById('dash-ul-url').value = '';
