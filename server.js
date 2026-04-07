@@ -65,7 +65,7 @@ const DU = [
   {username:'pedro',     password:hashPass('saber2025'),  name:'Pedro López',      emoji:'👦', role:'estudiante'},
 ];
 
-async function initUsers(){ if(usandoMongo){ if(!await UserM.countDocuments()) await UserM.insertMany(DU); } else if(!fs.existsSync(FILES.users)) wJSON(FILES.users,DU); }
+async function initUsers(){ if(usandoMongo){ const c=await UserM.countDocuments(); if(c===0){ try{ await UserM.insertMany(DU,{ordered:false}); }catch(e){ if(e.code!==11000) console.error("[INIT]",e.message); } } } else if(!fs.existsSync(FILES.users)) wJSON(FILES.users,DU); }
 
 // ── Helpers unificados ───────────────────────────────────────
 async function getUsers(){ return usandoMongo ? UserM.find().lean() : rJSON(FILES.users,DU); }
