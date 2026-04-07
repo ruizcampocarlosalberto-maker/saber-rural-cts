@@ -593,6 +593,40 @@ app.post('/api/recursos/enlace', requireTutor, (req, res) => {
 });
 
 
+// ── PERFIL — PATCH (actualizar datos del perfil) ─────────────
+app.patch('/api/perfil', requireAuth, (req, res) => {
+  const { nombre, telefono, fechaNacimiento, bio, intereses, emoji } = req.body || {};
+  const users = readJSON(FILES.users, DEFAULT_USERS);
+  const idx   = users.findIndex(u => u.username === req.user.username);
+  if (idx === -1) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  if (nombre)          users[idx].name            = nombre.trim();
+  if (emoji)           users[idx].emoji           = emoji;
+  if (telefono)        users[idx].telefono        = telefono;
+  if (fechaNacimiento) users[idx].fechaNacimiento = fechaNacimiento;
+  if (bio)             users[idx].bio             = bio;
+  if (intereses)       users[idx].intereses       = intereses;
+
+  writeJSON(FILES.users, users);
+  res.json({ ok: true, user: { username: users[idx].username, name: users[idx].name, emoji: users[idx].emoji } });
+});
+
+// ── PERFIL — FOTO (POST, subir foto de perfil) ───────────────
+app.post('/api/perfil/foto', requireAuth, upload.single('foto'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No se recibió ninguna foto' });
+
+  const users = readJSON(FILES.users, DEFAULT_USERS);
+  const idx   = users.findIndex(u => u.username === req.user.username);
+  if (idx === -1) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+  const fotoUrl = `/uploads/${req.file.filename}`;
+  users[idx].fotoUrl = fotoUrl;
+  writeJSON(FILES.users, users);
+
+  console.log(`[FOTO] ${req.user.username} · ${req.file.filename}`);
+  res.json({ ok: true, fotoUrl });
+});
+
 // ── Catch-all: servir index.html ─────────────────────────────
 app.get('*', (req, res) => {
   const indexPath = path.join(__dirname, 'public', 'index.html');
