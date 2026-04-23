@@ -227,6 +227,36 @@ app.post('/api/estudiantes/:username/reset-progreso',requireTutor,async(req,res)
 
 // ════════════════════════════════════════════════════════════
 
+// ── REGISTRO PÚBLICO (POST) — Crear tutor o estudiante ──────
+app.post('/api/registro', async (req, res) => {
+  const { username, nombre, clave, rol, institucion, grado } = req.body || {};
+  if (!username || !nombre || !clave || !rol)
+    return res.status(400).json({ error: 'Faltan campos obligatorios' });
+  if (!['tutor','estudiante'].includes(rol))
+    return res.status(400).json({ error: 'Rol inválido' });
+  if (clave.length < 6)
+    return res.status(400).json({ error: 'La clave debe tener al menos 6 caracteres' });
+  const users = await getUsers();
+  const userClean = username.toLowerCase().trim();
+  if (users.some(u => u.username === userClean))
+    return res.status(409).json({ error: 'Ya existe un usuario con ese nombre de usuario' });
+  const nuevo = {
+    username:   userClean,
+    password:   hashPass(clave),
+    name:       nombre.trim(),
+    emoji:      rol === 'tutor' ? '👨‍🏫' : '👨‍🎓',
+    role:       rol,
+    grado:      grado || '',
+    institucion: institucion || '',
+    creado:     new Date().toISOString(),
+    creadoPor:  'auto-registro',
+    primerIngresoCompletado: false
+  };
+  await saveUser(nuevo);
+  await saveAct({ tipo:'registro', username: userClean, detail: `Nuevo ${rol}: ${nombre.trim()} · ${institucion}`, ip: req.ip, ts: new Date().toISOString() });
+  res.json({ ok: true, mensaje: `Usuario ${nombre.trim()} registrado exitosamente como ${rol}` });
+});
+
 app.get('*',(req,res)=>{ const p=path.join(__dirname,'public','index.html'); if(fs.existsSync(p)) res.sendFile(p); else res.status(404).send('<h2>🏫 SABER RURAL v2.1</h2><p>No se encontró public/index.html</p><p>API activa en <a href="/api/ping">/api/ping</a></p>'); });
 
 app.use((err,req,res,next)=>{ if(err.code==='LIMIT_FILE_SIZE') return res.status(413).json({error:'Archivo demasiado grande (máx 50MB)'}); console.error('[ERROR]',err.message); res.status(500).json({error:'Error interno'}); });
