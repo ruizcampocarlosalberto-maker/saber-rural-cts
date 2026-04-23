@@ -693,6 +693,88 @@ body.student-mode #mBtn-notas      { display: none !important; }
     <div id="_login_debug" style="margin-top:10px;padding:10px;background:#111;color:#0f0;font-family:monospace;font-size:.72rem;border-radius:8px;text-align:left;line-height:1.6;display:none;max-height:160px;overflow-y:auto;white-space:pre-wrap"></div>
     <button onclick="document.getElementById('_login_debug').style.display=document.getElementById('_login_debug').style.display==='none'?'block':'none'" style="margin-top:8px;padding:6px 14px;background:#333;color:#aaa;border:none;border-radius:20px;font-size:.75rem;cursor:pointer">🔍 Ver diagnóstico</button>
     <p class="lhint" id="l-hint" style="display:none"></p>
+
+    <!-- Separador registro -->
+    <div style="display:flex;align-items:center;gap:10px;margin:16px 0 10px">
+      <div style="flex:1;height:1px;background:#eee"></div>
+      <span style="font-size:.72rem;color:#aaa;font-weight:600;white-space:nowrap">¿Eres nuevo/a?</span>
+      <div style="flex:1;height:1px;background:#eee"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <button onclick="abrirRegistro('tutor')"
+        style="padding:10px 6px;background:#fff;color:#1b4332;border:2px solid #2d6a4f;border-radius:50px;font-weight:700;font-size:.78rem;cursor:pointer;transition:.2s"
+        onmouseover="this.style.background='#f0faf4'" onmouseout="this.style.background='#fff'">
+        👨‍🏫 Soy Docente
+      </button>
+      <button onclick="abrirRegistro('estudiante')"
+        style="padding:10px 6px;background:#fff;color:#1a3c5e;border:2px solid #1a3c5e;border-radius:50px;font-weight:700;font-size:.78rem;cursor:pointer;transition:.2s"
+        onmouseover="this.style.background='#f0f4ff'" onmouseout="this.style.background='#fff'">
+        👨‍🎓 Soy Estudiante
+      </button>
+    </div>
+    <p style="font-size:.68rem;color:#bbb;text-align:center;margin-top:8px;line-height:1.5">
+      Si ya tienes cuenta, inicia sesión arriba.
+    </p>
+  </div>
+</div>
+
+<!-- MODAL DE REGISTRO -->
+<div id="modal-registro" style="display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.72);align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:20px;width:100%;max-width:420px;box-shadow:0 32px 80px rgba(0,0,0,.4);overflow:hidden">
+    <div style="background:linear-gradient(135deg,#1b4332,#1a3c5e);padding:22px 24px;text-align:center;color:#fff">
+      <div id="reg-icon" style="font-size:2.8rem;margin-bottom:6px">👨‍🏫</div>
+      <h3 id="reg-title" style="font-size:1.1rem;font-weight:800;margin:0 0 4px">Registro Docente</h3>
+      <p id="reg-sub" style="font-size:.8rem;opacity:.8;margin:0">Crea tu cuenta para acceder a SABER RURAL</p>
+    </div>
+    <div style="padding:20px 24px 24px">
+      <div style="display:grid;gap:11px">
+        <div>
+          <label style="font-size:.73rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Nombre completo *</label>
+          <input id="reg-nombre" type="text" maxlength="80" placeholder="Ej: Carlos Andrés Ruiz López"
+            style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;outline:none;transition:.2s"
+            onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ddd'">
+        </div>
+        <div>
+          <label style="font-size:.73rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Institución educativa *</label>
+          <input id="reg-institucion" type="text" maxlength="120" placeholder="Ej: I.E. Pueblo Nuevo — INEPUN"
+            style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;outline:none;transition:.2s"
+            onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ddd'">
+        </div>
+        <div id="reg-grado-wrap" style="display:none">
+          <label style="font-size:.73rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Grado *</label>
+          <select id="reg-grado" style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;background:#fff;outline:none">
+            <option value="">— Selecciona tu grado —</option>
+            <option>6°</option><option>7°</option><option>8°</option>
+            <option>9°</option><option>10°</option><option>11°</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:.73rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Usuario (sin espacios) *</label>
+          <input id="reg-user" type="text" maxlength="30" placeholder="Ej: carlos.ruiz"
+            style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;outline:none;transition:.2s"
+            onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ddd'">
+        </div>
+        <div>
+          <label style="font-size:.73rem;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;display:block;margin-bottom:4px">Contraseña *</label>
+          <input id="reg-clave" type="password" maxlength="50" placeholder="Mínimo 6 caracteres"
+            onkeydown="if(event.key==='Enter')enviarRegistro()"
+            style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;outline:none;transition:.2s"
+            onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ddd'">
+        </div>
+        <div id="reg-err" style="display:none;background:#fef0ef;border-left:3px solid #e74c3c;border-radius:7px;padding:8px 12px;font-size:.82rem;color:#7b1a1a"></div>
+        <div id="reg-ok"  style="display:none;background:#d4edda;border-left:3px solid #27ae60;border-radius:7px;padding:8px 12px;font-size:.82rem;color:#155724"></div>
+        <div style="display:flex;gap:8px;margin-top:2px">
+          <button onclick="document.getElementById('modal-registro').style.display='none'"
+            style="flex:1;padding:11px;background:#f0f0f0;color:#555;border:none;border-radius:50px;font-weight:700;font-size:.85rem;cursor:pointer">
+            Cancelar
+          </button>
+          <button id="reg-btn" onclick="enviarRegistro()"
+            style="flex:2;padding:11px;background:linear-gradient(135deg,#2d6a4f,#1a3c5e);color:#fff;border:none;border-radius:50px;font-weight:700;font-size:.85rem;cursor:pointer">
+            ✅ Crear cuenta
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <!-- MODAL: Captura nombre estudiante antes de actividades -->
@@ -9775,6 +9857,113 @@ doLogin = async function() {
   await _origDoLoginV2();
 };
 
+</script>
+<script>
+// ════════════════════════════════════════════════════════════
+// REGISTRO DE NUEVOS USUARIOS — Tutor y Estudiante
+// ════════════════════════════════════════════════════════════
+var _rolRegistro = 'estudiante';
+
+function abrirRegistro(rol) {
+  _rolRegistro = rol;
+  var esTutor = rol === 'tutor';
+  document.getElementById('reg-icon').textContent  = esTutor ? '👨‍🏫' : '👨‍🎓';
+  document.getElementById('reg-title').textContent = esTutor ? 'Registro Docente' : 'Registro Estudiante';
+  document.getElementById('reg-sub').textContent   = esTutor
+    ? 'Crea tu cuenta de docente para acceder al panel'
+    : 'Crea tu cuenta para iniciar tus actividades';
+  document.getElementById('reg-grado-wrap').style.display = esTutor ? 'none' : 'block';
+  // Limpiar campos
+  ['reg-nombre','reg-institucion','reg-user','reg-clave'].forEach(function(id){
+    var el = document.getElementById(id); if(el) el.value = '';
+  });
+  var gr = document.getElementById('reg-grado'); if(gr) gr.value = '';
+  document.getElementById('reg-err').style.display = 'none';
+  document.getElementById('reg-ok').style.display  = 'none';
+  var btn = document.getElementById('reg-btn');
+  if(btn){ btn.disabled = false; btn.textContent = '✅ Crear cuenta'; }
+  document.getElementById('modal-registro').style.display = 'flex';
+  setTimeout(function(){ var n = document.getElementById('reg-nombre'); if(n) n.focus(); }, 120);
+}
+
+async function enviarRegistro() {
+  var nombre      = (document.getElementById('reg-nombre').value      || '').trim();
+  var institucion = (document.getElementById('reg-institucion').value || '').trim();
+  var grado       = (document.getElementById('reg-grado').value       || '').trim();
+  var username    = (document.getElementById('reg-user').value        || '').trim().toLowerCase().replace(/\s+/g,'');
+  var clave       = (document.getElementById('reg-clave').value       || '');
+  var errEl = document.getElementById('reg-err');
+  var okEl  = document.getElementById('reg-ok');
+  var btn   = document.getElementById('reg-btn');
+  errEl.style.display = 'none';
+  okEl.style.display  = 'none';
+
+  if (!nombre)      { errEl.textContent = '⚠️ El nombre completo es obligatorio.';      errEl.style.display = 'block'; return; }
+  if (!institucion) { errEl.textContent = '⚠️ La institución educativa es obligatoria.'; errEl.style.display = 'block'; return; }
+  if (_rolRegistro === 'estudiante' && !grado) { errEl.textContent = '⚠️ Debes seleccionar tu grado.'; errEl.style.display = 'block'; return; }
+  if (!username)    { errEl.textContent = '⚠️ El usuario es obligatorio.';               errEl.style.display = 'block'; return; }
+  if (!/^[a-z0-9._-]+$/.test(username)) { errEl.textContent = '⚠️ El usuario solo puede tener letras, números, puntos y guiones.'; errEl.style.display = 'block'; return; }
+  if (clave.length < 6) { errEl.textContent = '⚠️ La contraseña debe tener al menos 6 caracteres.'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = '⏳ Creando cuenta...';
+
+  try {
+    // Intentar en el servidor primero
+    var online = typeof checkServerConnection === 'function' ? await checkServerConnection() : false;
+
+    if (online && typeof _apiFetch === 'function') {
+      await _apiFetch('/api/registro', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: username,
+          nombre: nombre,
+          clave: clave,
+          rol: _rolRegistro,
+          institucion: institucion,
+          grado: grado
+        })
+      });
+      okEl.textContent = '✅ ¡Cuenta creada! Ahora inicia sesión con el usuario "' + username + '".';
+      okEl.style.display = 'block';
+      btn.textContent = '✅ ¡Listo!';
+    } else {
+      // Fallback offline — guardar en IndexedDB local
+      if (typeof _idbPutUser === 'function' && typeof _hashPass === 'function') {
+        await _seedUsersIfEmpty();
+        var nuevoLocal = {
+          username:  username,
+          passHash:  _hashPass(clave),
+          name:      nombre,
+          emoji:     _rolRegistro === 'tutor' ? '👨‍🏫' : '👨‍🎓',
+          role:      _rolRegistro,
+          grado:     grado,
+          institucion: institucion
+        };
+        await _idbPutUser(nuevoLocal);
+        okEl.textContent = '✅ Cuenta creada (modo offline). Usuario: "' + username + '". ¡Ya puedes iniciar sesión!';
+        okEl.style.display = 'block';
+        btn.textContent = '✅ ¡Listo!';
+      } else {
+        throw new Error('Sin conexión al servidor. Conéctate a internet o activa el servidor para registrarte.');
+      }
+    }
+
+    // Prellenar el campo de usuario en el login
+    setTimeout(function() {
+      document.getElementById('modal-registro').style.display = 'none';
+      var uEl = document.getElementById('l-user');
+      var pEl = document.getElementById('l-pass');
+      if(uEl) uEl.value = username;
+      if(pEl) pEl.focus();
+    }, 2200);
+
+  } catch(e) {
+    errEl.textContent = '❌ ' + (e.message || 'Error al crear la cuenta. Intenta de nuevo.');
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = '✅ Crear cuenta';
+  }
+}
 </script>
 </body>
 </html>
