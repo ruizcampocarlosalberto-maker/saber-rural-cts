@@ -682,6 +682,13 @@ body.student-mode #mBtn-notas      { display: none !important; }
       <button class="ltab active" id="ltab-est" onclick="setLtab('est')">👨‍🎓 Estudiante</button>
       <button class="ltab" id="ltab-tut" onclick="setLtab('tut')">👨‍🏫 Tutor</button>
     </div>
+    <div class="lgroup"><label>🏫 Institución Educativa</label>
+      <input id="l-institucion" type="text" maxlength="120" placeholder="Escribe el nombre de tu institución"
+        onkeydown="if(event.key==='Enter')doLogin()"
+        style="width:100%;padding:9px 13px;border:1.5px solid #ddd;border-radius:9px;font-size:.9rem;box-sizing:border-box;outline:none;transition:.2s"
+        onfocus="this.style.borderColor='#2d6a4f'" onblur="this.style.borderColor='#ddd'">
+      <small style="display:block;margin-top:4px;font-size:.7rem;color:#999">Ejemplo: I.E. Pueblo Nuevo — INEPUN</small>
+    </div>
     <div class="lgroup"><label>Usuario</label>
       <input id="l-user" type="text" placeholder="Ej: carlos" onkeydown="if(event.key==='Enter')doLogin()">
     </div>
@@ -862,6 +869,7 @@ body.student-mode #mBtn-notas      { display: none !important; }
     <span id="sbar-em">👤</span>
     <span id="sbar-name">—</span>
     <span class="sbar-role" id="sbar-role">Estudiante</span>
+    <span id="sbar-ie" style="background:#e8f4fd;color:#1a3c5e;padding:2px 10px;border-radius:20px;font-size:.68rem;font-weight:700;margin-left:4px;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title=""></span>
     <span id="sbar-foto-mini" style="display:none;width:28px;height:28px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,.5);flex-shrink:0">
       <img id="sbar-foto-img" src="" style="width:100%;height:100%;object-fit:cover" alt="">
     </span>
@@ -2634,6 +2642,8 @@ Meiosis: 1 célula 2n → 4 células n (diferentes)</div>
     </div>
     <!-- Botones rápidos solo visibles para el docente (clase tutor-mode en body) -->
     <div id="chat-tutor-btns" style="display:none;gap:6px;flex-wrap:wrap">
+      <button onclick="abrirRegistroDesdePanel('estudiante')" style="padding:6px 13px;background:#e3f2fd;color:#0d2137;border:1.5px solid #90caf9;border-radius:50px;cursor:pointer;font-size:.78rem;font-weight:700">👨‍🎓 + Estudiante</button>
+      <button onclick="abrirRegistroDesdePanel('tutor')" style="padding:6px 13px;background:#fff3e0;color:#7a4200;border:1.5px solid #ffb74d;border-radius:50px;cursor:pointer;font-size:.78rem;font-weight:700">👨‍🏫 + Docente</button>
       <button onclick="tutorSay('📢 Pasemos al siguiente módulo.')"    style="padding:6px 13px;background:#e8f5e9;color:#1b4332;border:1.5px solid #a5d6a7;border-radius:50px;cursor:pointer;font-size:.78rem;font-weight:700">📢 Avanzar</button>
       <button onclick="tutorSay('✅ ¡Excelente trabajo! Sigan así.')"  style="padding:6px 13px;background:#e8f5e9;color:#1b4332;border:1.5px solid #a5d6a7;border-radius:50px;cursor:pointer;font-size:.78rem;font-weight:700">✅ Motivar</button>
       <button onclick="tutorSay('🔔 En 5 min: Simulacro. ¡Prepárense!')" style="padding:6px 13px;background:#fff8e1;color:#856404;border:1.5px solid #ffe082;border-radius:50px;cursor:pointer;font-size:.78rem;font-weight:700">🔔 Quiz</button>
@@ -3842,8 +3852,17 @@ function setLtab(t) {
 async function doLogin() {
   const u   = (document.getElementById('l-user').value||'').trim().toLowerCase();
   const p   = document.getElementById('l-pass').value||'';
+  const ie  = (document.getElementById('l-institucion').value||'').trim();
   const err = document.getElementById('l-err');
   err.className = 'lerr';
+
+  // ── VALIDACIÓN: Institución Educativa es obligatoria ──
+  if (!ie) {
+    err.textContent = '⚠️ Debes indicar tu Institución Educativa.';
+    err.className = 'lerr show';
+    document.getElementById('l-institucion').focus();
+    return;
+  }
 
   // ── DEBUG VISIBLE ──────────────────────────────────────────
   function _dbg(msg) {
@@ -3885,7 +3904,9 @@ async function doLogin() {
     return;
   }
   _dbg('✅ Login OK — iniciando sesión...');
-  currentUser = { username:u, name:rec.name, emoji:rec.emoji, role:rec.role };
+  currentUser = { username:u, name:rec.name, emoji:rec.emoji, role:rec.role, institucion:ie };
+  // Guardar en sessionStorage para mantener visible la institución durante la sesión
+  try { sessionStorage.setItem('ie_actual', ie); } catch(e){}
 
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('sbar').classList.add('show');
@@ -3895,6 +3916,12 @@ async function doLogin() {
   const rEl = document.getElementById('sbar-role');
   rEl.textContent = currentUser.role === 'tutor' ? 'Tutor' : 'Estudiante';
   rEl.className   = 'sbar-role' + (currentUser.role==='tutor' ? ' tutor' : '');
+  // Mostrar institución educativa en la barra
+  const ieEl = document.getElementById('sbar-ie');
+  if (ieEl && currentUser.institucion) {
+    ieEl.textContent = '🏫 ' + currentUser.institucion;
+    ieEl.title = currentUser.institucion;
+  }
   updateClock();
   setInterval(updateClock, 30000);
   dbRegister(currentUser);
@@ -3932,6 +3959,8 @@ function doLogout() {
   document.getElementById('apa-banner').classList.remove('show');
   document.getElementById('l-user').value = '';
   document.getElementById('l-pass').value = '';
+  const ieInp = document.getElementById('l-institucion'); if (ieInp) ieInp.value = '';
+  try { sessionStorage.removeItem('ie_actual'); } catch(e){}
   document.body.classList.remove('tutor-mode','student-mode');
   var tn = document.getElementById('tutor-nav');
   if (tn) tn.classList.remove('visible');
@@ -6215,8 +6244,17 @@ const _doLoginLocal = doLogin;
 async function doLogin() {
   const u   = (document.getElementById('l-user').value || '').trim().toLowerCase();
   const p   = document.getElementById('l-pass').value || '';
+  const ie  = (document.getElementById('l-institucion').value || '').trim();
   const err = document.getElementById('l-err');
   err.className = 'lerr';
+
+  // ── VALIDACIÓN: Institución Educativa es obligatoria ──
+  if (!ie) {
+    err.textContent = '⚠️ Debes indicar tu Institución Educativa.';
+    err.className = 'lerr show';
+    document.getElementById('l-institucion').focus();
+    return;
+  }
 
   const serverAvail = await checkServerConnection();
 
@@ -6225,10 +6263,12 @@ async function doLogin() {
     try {
       const data = await _apiFetch('/api/login', {
         method: 'POST',
-        body: JSON.stringify({ username: u, password: p })
+        body: JSON.stringify({ username: u, password: p, institucion: ie })
       });
       _apiToken   = data.token;
-      currentUser = { username: u, ...data.user };
+      // Usar institución que venga del servidor (si la manda) o la que escribió el usuario
+      currentUser = { username: u, ...data.user, institucion: (data.user && data.user.institucion) || ie };
+      try { sessionStorage.setItem('ie_actual', currentUser.institucion); } catch(e){}
 
       _finalizarLogin();
       // Sincronizar notas después del login (solo tutor)
@@ -6257,7 +6297,8 @@ async function doLogin() {
     return;
   }
   _apiToken   = null; // sin token al trabajar offline
-  currentUser = { username: u, name: rec.name, emoji: rec.emoji, role: rec.role };
+  currentUser = { username: u, name: rec.name, emoji: rec.emoji, role: rec.role, institucion: ie };
+  try { sessionStorage.setItem('ie_actual', ie); } catch(e){}
   _finalizarLogin();
 }
 
@@ -6272,6 +6313,12 @@ function _finalizarLogin() {
   var esTutor = currentUser.role === 'tutor' || currentUser.role === 'docente';
   rEl.textContent = esTutor ? 'Docente' : 'Estudiante';
   rEl.className   = 'sbar-role' + (esTutor ? ' tutor' : '');
+  // Mostrar institución educativa en la barra
+  var ieEl = document.getElementById('sbar-ie');
+  if (ieEl && currentUser.institucion) {
+    ieEl.textContent = '🏫 ' + currentUser.institucion;
+    ieEl.title = currentUser.institucion;
+  }
   updateClock();
   setInterval(updateClock, 30000);
   dbRegister(currentUser);
@@ -9845,12 +9892,13 @@ const _origDoLoginV2 = doLogin;
 doLogin = async function() {
   const u = (document.getElementById('l-user').value || '').trim().toLowerCase();
   const p = document.getElementById('l-pass').value || '';
+  const ie = (document.getElementById('l-institucion').value || '').trim();
   window._loginData = null;
   window._loginPassword = p;
   try {
     const serverAvail = await checkServerConnection();
-    if (serverAvail) {
-      const data = await _apiFetch('/api/login', { method:'POST', body: JSON.stringify({ username: u, password: p }) });
+    if (serverAvail && ie) {
+      const data = await _apiFetch('/api/login', { method:'POST', body: JSON.stringify({ username: u, password: p, institucion: ie }) });
       window._loginData = data;
     }
   } catch(e) {}
@@ -9863,6 +9911,24 @@ doLogin = async function() {
 // REGISTRO DE NUEVOS USUARIOS — Tutor y Estudiante
 // ════════════════════════════════════════════════════════════
 var _rolRegistro = 'estudiante';
+
+// ── Invocado desde el PANEL DOCENTE (botones +Estudiante / +Docente) ──
+function abrirRegistroDesdePanel(rol) {
+  // Validar que quien invoca sea un docente autenticado
+  if (!currentUser || currentUser.role !== 'tutor') {
+    alert('⚠️ Solo los docentes pueden crear nuevos usuarios.');
+    return;
+  }
+  abrirRegistro(rol);
+  // Prellenar la institución del docente que está creando el usuario (opcional)
+  setTimeout(function(){
+    var ieEl = document.getElementById('reg-institucion');
+    if (ieEl && currentUser.institucion) {
+      ieEl.value = currentUser.institucion;
+      ieEl.placeholder = 'Puedes cambiar la institución si es necesario';
+    }
+  }, 160);
+}
 
 function abrirRegistro(rol) {
   _rolRegistro = rol;
