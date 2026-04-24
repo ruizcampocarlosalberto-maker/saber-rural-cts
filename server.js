@@ -39,13 +39,13 @@ const UPLOAD_DIR     = process.env.UPLOAD_DIR || path.join(__dirname, 'public', 
 let UserM, ChatM, ResultadoM, NotasM, RecursoM, ActividadM, SesionM;
 function definirModelos() {
   const S = mongoose.Schema;
-  UserM      = mongoose.models.User      || mongoose.model('User',      new S({ username:{type:String,unique:true,required:true}, password:String, name:String, emoji:{type:String,default:'👤'}, role:{type:String,default:'estudiante'}, fotoUrl:String, telefono:String, fechaNacimiento:String, bio:String, intereses:String, grado:String, primerIngresoCompletado:{type:Boolean,default:false}, primerIngresoTs:String, creado:String, creadoPor:String }, {timestamps:true}));
+  UserM      = mongoose.models.User      || mongoose.model('User',      new S({ username:{type:String,unique:true,required:true}, password:String, name:String, emoji:{type:String,default:'👤'}, role:{type:String,default:'estudiante'}, fotoUrl:String, telefono:String, fechaNacimiento:String, bio:String, intereses:String, grado:String, institucion:{type:String,default:''}, primerIngresoCompletado:{type:Boolean,default:false}, primerIngresoTs:String, creado:String, creadoPor:String }, {timestamps:true}));
   ChatM      = mongoose.models.Chat      || mongoose.model('Chat',      new S({ user:String, name:String, emoji:String, role:String, text:String, time:String, type:{type:String,default:'msg'}, ts:{type:String,default:()=>new Date().toISOString()} }));
   ResultadoM = mongoose.models.Resultado || mongoose.model('Resultado', new S({ username:String, nombre:String, modulo:String, score:Number, total:Number, pct:Number, duracion:Number, respuestas:Array, fecha:String, ts:{type:String,default:()=>new Date().toISOString()} }));
   NotasM     = mongoose.models.Notas     || mongoose.model('Notas',     new S({ students:Array, updatedAt:String }));
   RecursoM   = mongoose.models.Recurso   || mongoose.model('Recurso',   new S({ id:Number, titulo:String, modulo:{type:String,default:'general'}, tipo:{type:String,default:'archivo'}, filename:String, originalName:String, mimeType:String, size:Number, url:String, uploadedBy:String, uploaderName:String, fecha:String, ts:{type:String,default:()=>new Date().toISOString()} }));
   ActividadM = mongoose.models.Actividad || mongoose.model('Actividad', new S({ tipo:String, username:String, nombre:String, detail:String, ip:String, ts:{type:String,default:()=>new Date().toISOString()} }));
-  SesionM    = mongoose.models.Sesion    || mongoose.model('Sesion',    new S({ username:{type:String,unique:true}, name:String, emoji:String, role:String, ip:String, loginTs:String, lastSeen:String }));
+  SesionM    = mongoose.models.Sesion    || mongoose.model('Sesion',    new S({ username:{type:String,unique:true}, name:String, emoji:String, role:String, institucion:String, ip:String, loginTs:String, lastSeen:String }));
 }
 
 // ── JSON fallback ────────────────────────────────────────────
@@ -106,7 +106,7 @@ function requireTutor(req,res,next){ requireAuth(req,res,()=>{ if(req.user.role!
 // ── Endpoints ────────────────────────────────────────────────
 app.get('/api/ping',(req,res)=>res.json({ok:true,server:'SABER RURAL v2.1',ie:'I.E. Pueblo Nuevo · INEPUN',env:IS_PROD?'producción':'desarrollo',db:usandoMongo?'MongoDB Atlas ✅':'JSON local ⚠️',ts:new Date().toISOString(),uptime:Math.floor(process.uptime())+'s'}));
 
-app.post('/api/login',async(req,res)=>{ const{username,password}=req.body||{}; if(!username||!password) return res.status(400).json({error:'Usuario y contraseña requeridos'}); const users=await getUsers(); const user=users.find(u=>u.username===username.toLowerCase().trim()); const ok=user&&(user.password===hashPass(password)||user.password===password); if(!ok){ await saveAct({tipo:'login_fallido',username,ip:req.ip,ts:new Date().toISOString()}); return res.status(401).json({error:'Usuario o contraseña incorrectos'}); } const token=jwt.sign({username:user.username,role:user.role,name:user.name},JWT_SECRET_F,{expiresIn:JWT_EXPIRY}); await saveAct({tipo:'login',username:user.username,ip:req.ip,ts:new Date().toISOString()}); await saveSesion({username:user.username,name:user.name,emoji:user.emoji,role:user.role,ip:req.ip,loginTs:new Date().toISOString(),lastSeen:new Date().toISOString()}); res.json({ok:true,token,user:{username:user.username,name:user.name,emoji:user.emoji,role:user.role,primerIngresoCompletado:user.primerIngresoCompletado||false}}); });
+app.post('/api/login',async(req,res)=>{ const{username,password,institucion}=req.body||{}; if(!username||!password) return res.status(400).json({error:'Usuario y contraseña requeridos'}); const users=await getUsers(); const user=users.find(u=>u.username===username.toLowerCase().trim()); const ok=user&&(user.password===hashPass(password)||user.password===password); if(!ok){ await saveAct({tipo:'login_fallido',username,ip:req.ip,ts:new Date().toISOString()}); return res.status(401).json({error:'Usuario o contraseña incorrectos'}); } const ieSesion = (institucion||'').trim() || user.institucion || ''; const token=jwt.sign({username:user.username,role:user.role,name:user.name,institucion:ieSesion},JWT_SECRET_F,{expiresIn:JWT_EXPIRY}); await saveAct({tipo:'login',username:user.username,detail:`IE: ${ieSesion||'(no indicada)'}`,ip:req.ip,ts:new Date().toISOString()}); await saveSesion({username:user.username,name:user.name,emoji:user.emoji,role:user.role,institucion:ieSesion,ip:req.ip,loginTs:new Date().toISOString(),lastSeen:new Date().toISOString()}); res.json({ok:true,token,user:{username:user.username,name:user.name,emoji:user.emoji,role:user.role,institucion:ieSesion,primerIngresoCompletado:user.primerIngresoCompletado||false}}); });
 
 app.post('/api/cambiar-password',requireAuth,async(req,res)=>{ const{currentPassword,newPassword}=req.body||{}; if(!currentPassword||!newPassword) return res.status(400).json({error:'Faltan campos'}); if(newPassword.length<6) return res.status(400).json({error:'Mínimo 6 caracteres'}); const users=await getUsers(); const user=users.find(u=>u.username===req.user.username); if(!user) return res.status(404).json({error:'Usuario no encontrado'}); if(user.password!==hashPass(currentPassword)&&user.password!==currentPassword) return res.status(401).json({error:'Contraseña actual incorrecta'}); await saveUser({...user,password:hashPass(newPassword)}); res.json({ok:true,message:'Contraseña actualizada'}); });
 
@@ -182,21 +182,21 @@ app.get('/api/estudiantes',requireTutor,async(req,res)=>{
   const users=await getUsers();
   const estudiantes=users.filter(u=>u.role==='estudiante').map(u=>({
     username:u.username,nombre:u.name,emoji:u.emoji||'👨‍🎓',
-    grado:u.grado||'',fotoUrl:u.fotoUrl||null,creado:u.creado||null
+    grado:u.grado||'',institucion:u.institucion||'',fotoUrl:u.fotoUrl||null,creado:u.creado||null
   }));
   res.json({ok:true,estudiantes});
 });
 
 // ── ESTUDIANTES — CREAR (POST, solo tutor) ───────────────────
 app.post('/api/estudiantes',requireTutor,async(req,res)=>{
-  const{username,nombre,grado,clave}=req.body||{};
+  const{username,nombre,grado,clave,institucion}=req.body||{};
   if(!username||!nombre||!clave) return res.status(400).json({error:'Faltan datos: username, nombre y clave son obligatorios'});
   const users=await getUsers();
   const userClean=username.toLowerCase().trim();
   if(users.some(u=>u.username===userClean)) return res.status(409).json({error:'Ya existe un usuario con ese nombre'});
-  const nuevo={username:userClean,password:hashPass(clave),name:nombre.trim(),emoji:'👨‍🎓',role:'estudiante',grado:grado||'',creado:new Date().toISOString(),creadoPor:req.user.username};
+  const nuevo={username:userClean,password:hashPass(clave),name:nombre.trim(),emoji:'👨‍🎓',role:'estudiante',grado:grado||'',institucion:(institucion||'').trim(),creado:new Date().toISOString(),creadoPor:req.user.username};
   await saveUser(nuevo);
-  res.json({ok:true,estudiante:{username:nuevo.username,nombre:nuevo.name,grado:nuevo.grado}});
+  res.json({ok:true,estudiante:{username:nuevo.username,nombre:nuevo.name,grado:nuevo.grado,institucion:nuevo.institucion}});
 });
 
 // ── ESTUDIANTES — RESETEAR CLAVE (POST, solo tutor) ──────────
@@ -223,6 +223,54 @@ app.delete('/api/estudiantes/:username',requireTutor,async(req,res)=>{
 app.post('/api/estudiantes/:username/reset-progreso',requireTutor,async(req,res)=>{
   const eliminados=await deleteResultadosUser(req.params.username);
   res.json({ok:true,eliminados:{resultados:eliminados}});
+});
+
+// ── DOCENTES — LISTAR (GET, solo tutor) ──────────────────────
+app.get('/api/docentes',requireTutor,async(req,res)=>{
+  const users=await getUsers();
+  const docentes=users.filter(u=>u.role==='tutor').map(u=>({
+    username:u.username,nombre:u.name,emoji:u.emoji||'👨‍🏫',
+    institucion:u.institucion||'',fotoUrl:u.fotoUrl||null,creado:u.creado||null,creadoPor:u.creadoPor||''
+  }));
+  res.json({ok:true,docentes});
+});
+
+// ── DOCENTES — CREAR (POST, solo tutor) ──────────────────────
+app.post('/api/docentes',requireTutor,async(req,res)=>{
+  const{username,nombre,clave,institucion}=req.body||{};
+  if(!username||!nombre||!clave) return res.status(400).json({error:'Faltan datos: username, nombre y clave son obligatorios'});
+  if(clave.length<6) return res.status(400).json({error:'La clave debe tener al menos 6 caracteres'});
+  const users=await getUsers();
+  const userClean=username.toLowerCase().trim();
+  if(users.some(u=>u.username===userClean)) return res.status(409).json({error:'Ya existe un usuario con ese nombre'});
+  const nuevo={username:userClean,password:hashPass(clave),name:nombre.trim(),emoji:'👨‍🏫',role:'tutor',institucion:(institucion||'').trim(),creado:new Date().toISOString(),creadoPor:req.user.username};
+  await saveUser(nuevo);
+  await saveAct({tipo:'docente_creado',username:userClean,detail:`Docente creado por ${req.user.username} · IE: ${nuevo.institucion}`,ip:req.ip,ts:new Date().toISOString()});
+  res.json({ok:true,docente:{username:nuevo.username,nombre:nuevo.name,institucion:nuevo.institucion}});
+});
+
+// ── DOCENTES — RESETEAR CLAVE (POST, solo tutor) ─────────────
+app.post('/api/docentes/:username/reset-clave',requireTutor,async(req,res)=>{
+  const{nuevaClave}=req.body||{};
+  if(!nuevaClave||nuevaClave.length<6) return res.status(400).json({error:'Nueva clave debe tener al menos 6 caracteres'});
+  const users=await getUsers();
+  const user=users.find(u=>u.username===req.params.username&&u.role==='tutor');
+  if(!user) return res.status(404).json({error:'Docente no encontrado'});
+  user.password=hashPass(nuevaClave);
+  await saveUser(user);
+  res.json({ok:true});
+});
+
+// ── DOCENTES — ELIMINAR (DELETE, solo tutor) ─────────────────
+app.delete('/api/docentes/:username',requireTutor,async(req,res)=>{
+  // Evitar auto-eliminación
+  if(req.params.username===req.user.username) return res.status(400).json({error:'No puedes eliminar tu propio usuario mientras estés conectado'});
+  const users=await getUsers();
+  const user=users.find(u=>u.username===req.params.username&&u.role==='tutor');
+  if(!user) return res.status(404).json({error:'Docente no encontrado'});
+  await deleteUser(req.params.username);
+  await saveAct({tipo:'docente_eliminado',username:req.params.username,detail:`Eliminado por ${req.user.username}`,ip:req.ip,ts:new Date().toISOString()});
+  res.json({ok:true});
 });
 
 // ════════════════════════════════════════════════════════════
